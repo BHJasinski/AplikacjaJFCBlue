@@ -1,1 +1,193 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Wizualizacja AdBlue JFC</title>
+    <style>
+        :root {
+            --primary: #0056b3;
+            --secondary: #6c757d;
+            --success: #28a745;
+            --bg: #f0f2f5;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        /* Obszar wizualizacji */
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background: #222;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            touch-action: none;
+        }
+        #background-img {
+            max-width: 100%;
+            max-height: 100%;
+            pointer-events: none;
+        }
+        #overlay-img {
+            position: absolute;
+            width: 250px; /* szerokość początkowa */
+            cursor: move;
+            touch-action: none;
+            filter: drop-shadow(0px 10px 20px rgba(0,0,0,0.4));
+            z-index: 10;
+        }
+        #placeholder-text {
+            color: white;
+            position: absolute;
+            text-align: center;
+            padding: 20px;
+        }
+        /* Panel sterowania */
+        .controls {
+            background: white;
+            padding: 15px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.2);
+            z-index: 20;
+        }
+        button {
+            padding: 18px 5px;
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border: none;
+            border-radius: 12px;
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.1s;
+        }
+        button:active { transform: scale(0.95); }
+        .view-btn { background: var(--secondary); }
+        .upload-btn { background: #444; }
+        .save-btn { 
+            grid-column: span 3; 
+            background: var(--success); 
+            font-size: 18px;
+            margin-top: 5px;
+        }
+        .size-group {
+            grid-column: span 3;
+            display: flex;
+            gap: 10px;
+        }
+        .size-btn { flex: 1; background: #333; }
+        
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body>
 
+<div id="canvas-container">
+    <div id="placeholder-text">
+        <h2>Wizualizacja Kontenera</h2>
+        <p>Kliknij "WGRAJ MIEJSCE", aby zacząć</p>
+    </div>
+    <img id="background-img">
+    <img id="overlay-img" src="images/kontener-skos.png" style="display:none;">
+</div>
+
+<div class="controls">
+    <button class="upload-btn" onclick="document.getElementById('upload-input').click()">📸 Wgraj Miejsce</button>
+    <input type="file" id="upload-input" accept="image/*">
+
+    <button class="view-btn" onclick="changeView('images/kontener-skos.png')">Widok Skos</button>
+    <button class="view-btn" onclick="changeView('images/kontener-przod.png')">Widok Przód</button>
+    <button class="view-btn" onclick="changeView('images/kontener-bok.png')">Widok Bok</button>
+    
+    <div class="size-group">
+        <button class="size-btn" onclick="adjustSize(1.1)">➕ Powiększ</button>
+        <button class="size-btn" onclick="adjustSize(0.9)">➖ Pomniejsz</button>
+    </div>
+
+    <button class="save-btn" onclick="saveInstructions()">GOTOWE / ZAPISZ</button>
+</div>
+
+<script>
+    const overlay = document.getElementById('overlay-img');
+    const bgImg = document.getElementById('background-img');
+    const placeholder = document.getElementById('placeholder-text');
+    
+    let currentScale = 250;
+    let posX = 0;
+    let posY = 0;
+
+    // 1. Wgrywanie zdjęcia stacji
+    document.getElementById('upload-input').onchange = function(e) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            bgImg.src = event.target.result;
+            overlay.style.display = 'block';
+            placeholder.style.display = 'none';
+            // Wyśrodkowanie kontenera po wgraniu
+            resetPosition();
+        }
+        reader.readAsDataURL(e.target.files[0]);
+    };
+
+    // 2. Zmiana widoku kontenera
+    function changeView(path) {
+        overlay.src = path;
+    }
+
+    // 3. Skalowanie przyciskami
+    function adjustSize(factor) {
+        currentScale *= factor;
+        overlay.style.width = currentScale + 'px';
+    }
+
+    function resetPosition() {
+        posX = window.innerWidth / 2 - currentScale / 2;
+        posY = window.innerHeight / 3;
+        updateTransform();
+    }
+
+    // 4. Przesuwanie palcem (obsługa Touch i Mouse)
+    let isDragging = false;
+    let startX, startY;
+
+    overlay.onpointerdown = (e) => {
+        isDragging = true;
+        startX = e.clientX - posX;
+        startY = e.clientY - posY;
+        overlay.setPointerCapture(e.pointerId);
+    };
+
+    overlay.onpointermove = (e) => {
+        if (!isDragging) return;
+        posX = e.clientX - startX;
+        posY = e.clientY - startY;
+        updateTransform();
+    };
+
+    overlay.onpointerup = () => { isDragging = false; };
+
+    function updateTransform() {
+        overlay.style.left = posX + 'px';
+        overlay.style.top = posY + 'px';
+    }
+
+    // 5. Instrukcja zapisu
+    function saveInstructions() {
+        alert("Wizualizacja gotowa! \n\nAby zapisać: zrób zrzut ekranu telefonu (Power + Volume Down).");
+    }
+</script>
+
+</body>
+</html>
