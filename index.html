@@ -3,53 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AdBlue AR - Aparat</title>
+    <title>AdBlue AR - Aparat z Podglądem</title>
     <style>
         :root { --primary: #0056b3; --success: #28a745; }
         body { margin: 0; padding: 0; overflow: hidden; background: black; font-family: sans-serif; }
         
-        #camera-container {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 1;
-        }
+        #camera-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         video { width: 100%; height: 100%; object-fit: cover; }
 
         #overlay-img {
-            position: absolute;
-            top: 30%; left: 25%;
-            width: 250px;
-            z-index: 10;
-            touch-action: none;
+            position: absolute; top: 30%; left: 25%; width: 250px;
+            z-index: 10; touch-action: none;
             filter: drop-shadow(0px 10px 20px rgba(0,0,0,0.5));
         }
 
+        /* Panel przycisków */
         .ui-panel {
-            position: fixed;
-            bottom: 0; left: 0; width: 100%;
+            position: fixed; bottom: 0; left: 0; width: 100%;
             background: rgba(255, 255, 255, 0.9);
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            padding: 15px;
-            box-sizing: border-box;
-            z-index: 100;
-            border-radius: 20px 20px 0 0;
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 10px; padding: 15px; box-sizing: border-box;
+            z-index: 100; border-radius: 20px 20px 0 0;
         }
         button {
-            padding: 18px 5px;
-            border: none;
-            border-radius: 12px;
-            background: var(--primary);
-            color: white;
-            font-weight: bold;
-            font-size: 14px;
+            padding: 18px 5px; border: none; border-radius: 12px;
+            background: var(--primary); color: white; font-weight: bold; font-size: 14px;
         }
         .size-btn { background: #333; }
         .save-btn { grid-column: span 3; background: var(--success); font-size: 18px; height: 60px; }
         
-        /* Ukryty element do generowania zdjęcia */
+        /* Ekran podglądu zdjęcia (Flash effect) */
+        #preview-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 200;
+            flex-direction: column; align-items: center; justify-content: center;
+        }
+        #preview-img { max-width: 90%; max-height: 70%; border: 5px solid white; border-radius: 10px; }
+        .preview-text { color: white; margin: 15px; font-weight: bold; text-align: center; }
+        .close-preview { background: #dc3545; width: 80%; }
+
         #snapshot-canvas { display: none; }
     </style>
 </head>
@@ -58,6 +50,13 @@
 <div id="camera-container">
     <video id="video" autoplay playsinline></video>
     <img id="overlay-img" src="images/kontener-skos.png">
+</div>
+
+<div id="preview-overlay">
+    <div class="preview-text">ZDJĘCIE ZAPISANE W POBRANYCH</div>
+    <img id="preview-img">
+    <div class="preview-text">Możesz je teraz znaleźć w Galerii</div>
+    <button class="close-preview" onclick="closePreview()">WRÓĆ DO APARATU</button>
 </div>
 
 <canvas id="snapshot-canvas"></canvas>
@@ -77,6 +76,8 @@
     const video = document.getElementById('video');
     const overlay = document.getElementById('overlay-img');
     const canvas = document.getElementById('snapshot-canvas');
+    const previewOverlay = document.getElementById('preview-overlay');
+    const previewImg = document.getElementById('preview-img');
     
     let scale = 250;
     let posX = window.innerWidth / 4;
@@ -89,9 +90,7 @@
                 audio: false 
             });
             video.srcObject = stream;
-        } catch (err) {
-            alert("Błąd kamery. Upewnij się, że używasz HTTPS i nadałeś uprawnienia.");
-        }
+        } catch (err) { alert("Błąd kamery. Użyj HTTPS."); }
     }
 
     function changeView(path) { overlay.src = path; }
@@ -112,18 +111,15 @@
         overlay.style.top = posY + 'px';
     };
 
-    // FUNKCJA ROBIENIA ZDJĘCIA
     function takePhoto() {
         const ctx = canvas.getContext('2d');
-        
-        // Ustawiamy rozmiar zdjęcia taki jak wideo
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
 
-        // 1. Rysujemy tło z kamery
+        // Rysuj tło
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // 2. Obliczamy proporcje, aby kontener był w tym samym miejscu co na ekranie
+        // Oblicz pozycję kontenera
         const rect = video.getBoundingClientRect();
         const ratioX = canvas.width / rect.width;
         const ratioY = canvas.height / rect.height;
@@ -133,20 +129,27 @@
         const imgW = scale * ratioX;
         const imgH = overlay.offsetHeight * ratioY;
 
-        // 3. Nakładamy kontener
         const img = new Image();
-        img.crossOrigin = "anonymous";
         img.src = overlay.src;
         img.onload = () => {
             ctx.drawImage(img, imgX, imgY, imgW, imgH);
             
-            // 4. Pobieramy gotowe zdjęcie i wywołujemy pobieranie
             const dataURL = canvas.toDataURL("image/png");
+            
+            // POKAZANIE PODGLĄDU
+            previewImg.src = dataURL;
+            previewOverlay.style.display = 'flex';
+
+            // AUTOMATYCZNE POBIERANIE
             const link = document.createElement('a');
-            link.download = `wizualizacja-adblue-${new Date().getTime()}.png`;
+            link.download = `AdBlue_${new Date().getTime()}.png`;
             link.href = dataURL;
             link.click();
         };
+    }
+
+    function closePreview() {
+        previewOverlay.style.display = 'none';
     }
 
     setupCamera();
