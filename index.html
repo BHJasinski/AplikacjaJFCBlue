@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AdBlue AR - Aparat z Podglądem</title>
+    <title>AdBlue AR - Gesty Dotykowe</title>
     <style>
         :root { --primary: #0056b3; --success: #28a745; }
         body { margin: 0; padding: 0; overflow: hidden; background: black; font-family: sans-serif; }
@@ -15,9 +15,9 @@
             position: absolute; top: 30%; left: 25%; width: 250px;
             z-index: 10; touch-action: none;
             filter: drop-shadow(0px 10px 20px rgba(0,0,0,0.5));
+            transform-origin: center center;
         }
 
-        /* Panel przycisków */
         .ui-panel {
             position: fixed; bottom: 0; left: 0; width: 100%;
             background: rgba(255, 255, 255, 0.9);
@@ -26,13 +26,11 @@
             z-index: 100; border-radius: 20px 20px 0 0;
         }
         button {
-            padding: 18px 5px; border: none; border-radius: 12px;
+            padding: 20px 5px; border: none; border-radius: 12px;
             background: var(--primary); color: white; font-weight: bold; font-size: 14px;
         }
-        .size-btn { background: #333; }
-        .save-btn { grid-column: span 3; background: var(--success); font-size: 18px; height: 60px; }
+        .save-btn { grid-column: span 3; background: var(--success); font-size: 18px; height: 65px; margin-top: 5px; }
         
-        /* Ekran podglądu zdjęcia (Flash effect) */
         #preview-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.9); z-index: 200;
@@ -40,8 +38,6 @@
         }
         #preview-img { max-width: 90%; max-height: 70%; border: 5px solid white; border-radius: 10px; }
         .preview-text { color: white; margin: 15px; font-weight: bold; text-align: center; }
-        .close-preview { background: #dc3545; width: 80%; }
-
         #snapshot-canvas { display: none; }
     </style>
 </head>
@@ -53,10 +49,9 @@
 </div>
 
 <div id="preview-overlay">
-    <div class="preview-text">ZDJĘCIE ZAPISANE W POBRANYCH</div>
+    <div class="preview-text">ZDJĘCIE ZAPISANE</div>
     <img id="preview-img">
-    <div class="preview-text">Możesz je teraz znaleźć w Galerii</div>
-    <button class="close-preview" onclick="closePreview()">WRÓĆ DO APARATU</button>
+    <button style="background: #dc3545; width: 80%; margin-top: 20px;" onclick="document.getElementById('preview-overlay').style.display='none'">WRÓĆ</button>
 </div>
 
 <canvas id="snapshot-canvas"></canvas>
@@ -65,10 +60,6 @@
     <button onclick="changeView('images/kontener-skos.png')">Widok Skos</button>
     <button onclick="changeView('images/kontener-przod.png')">Widok Przód</button>
     <button onclick="changeView('images/kontener-bok.png')">Widok Bok</button>
-    
-    <button class="size-btn" onclick="adjustSize(1.1)">➕ Powiększ</button>
-    <button class="size-btn" style="grid-column: span 2" onclick="adjustSize(0.9)">➖ Pomniejsz</button>
-
     <button class="save-btn" onclick="takePhoto()">📸 ZRÓB I ZAPISZ ZDJĘCIE</button>
 </div>
 
@@ -76,83 +67,87 @@
     const video = document.getElementById('video');
     const overlay = document.getElementById('overlay-img');
     const canvas = document.getElementById('snapshot-canvas');
-    const previewOverlay = document.getElementById('preview-overlay');
-    const previewImg = document.getElementById('preview-img');
     
-    let scale = 250;
+    let scale = 1;
+    let rotation = 0;
     let posX = window.innerWidth / 4;
     let posY = window.innerHeight / 3;
+
+    // GESTY - BIBLIOTEKA LOGIKI
+    let initialDist = 0;
+    let initialScale = 1;
+
+    overlay.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            initialDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+            initialScale = scale;
+        }
+    });
+
+    overlay.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1) {
+            // Przesuwanie
+            posX = e.touches[0].pageX - (overlay.offsetWidth / 2);
+            posY = e.touches[0].pageY - (overlay.offsetHeight / 2);
+        } else if (e.touches.length === 2) {
+            // Skalowanie (szczypanie)
+            const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+            scale = initialScale * (dist / initialDist);
+        }
+        updateTransform();
+    }, {passive: false});
+
+    function updateTransform() {
+        overlay.style.left = posX + 'px';
+        overlay.style.top = posY + 'px';
+        overlay.style.transform = `scale(${scale})`;
+    }
 
     async function setupCamera() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
-                audio: false 
+                video: { facingMode: "environment", width: { ideal: 1920 } }, audio: false 
             });
             video.srcObject = stream;
         } catch (err) { alert("Błąd kamery. Użyj HTTPS."); }
     }
 
     function changeView(path) { overlay.src = path; }
-    function adjustSize(factor) {
-        scale *= factor;
-        overlay.style.width = scale + 'px';
-    }
-
-    // Przesuwanie
-    let isDragging = false;
-    overlay.onpointerdown = (e) => { isDragging = true; overlay.setPointerCapture(e.pointerId); };
-    overlay.onpointerup = () => { isDragging = false; };
-    overlay.onpointermove = (e) => {
-        if (!isDragging) return;
-        posX += e.movementX;
-        posY += e.movementY;
-        overlay.style.left = posX + 'px';
-        overlay.style.top = posY + 'px';
-    };
 
     function takePhoto() {
         const ctx = canvas.getContext('2d');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-
-        // Rysuj tło
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Oblicz pozycję kontenera
         const rect = video.getBoundingClientRect();
         const ratioX = canvas.width / rect.width;
         const ratioY = canvas.height / rect.height;
 
-        const imgX = (posX - rect.left) * ratioX;
-        const imgY = (posY - rect.top) * ratioY;
-        const imgW = scale * ratioX;
-        const imgH = overlay.offsetHeight * ratioY;
+        // Uwzględnienie skali z transform: scale()
+        const finalW = overlay.offsetWidth * scale * ratioX;
+        const finalH = overlay.offsetHeight * scale * ratioY;
+        const finalX = (posX + (overlay.offsetWidth/2) - (overlay.offsetWidth * scale / 2)) * ratioX;
+        const finalY = (posY + (overlay.offsetHeight/2) - (overlay.offsetHeight * scale / 2)) * ratioY;
 
         const img = new Image();
         img.src = overlay.src;
         img.onload = () => {
-            ctx.drawImage(img, imgX, imgY, imgW, imgH);
-            
+            ctx.drawImage(img, finalX, finalY, finalW, finalH);
             const dataURL = canvas.toDataURL("image/png");
+            document.getElementById('preview-img').src = dataURL;
+            document.getElementById('preview-overlay').style.display = 'flex';
             
-            // POKAZANIE PODGLĄDU
-            previewImg.src = dataURL;
-            previewOverlay.style.display = 'flex';
-
-            // AUTOMATYCZNE POBIERANIE
             const link = document.createElement('a');
-            link.download = `AdBlue_${new Date().getTime()}.png`;
+            link.download = `AdBlue_AR.png`;
             link.href = dataURL;
             link.click();
         };
     }
 
-    function closePreview() {
-        previewOverlay.style.display = 'none';
-    }
-
     setupCamera();
+    updateTransform();
 </script>
 
 </body>
