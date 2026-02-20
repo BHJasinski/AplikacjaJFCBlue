@@ -3,190 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Wizualizacja AdBlue JFC</title>
+    <title>AdBlue AR - Podgląd Na Żywo</title>
     <style>
-        :root {
-            --primary: #0056b3;
-            --secondary: #6c757d;
-            --success: #28a745;
-            --bg: #f0f2f5;
+        :root { --primary: #0056b3; --success: #28a745; }
+        body { margin: 0; padding: 0; overflow: hidden; background: black; font-family: sans-serif; }
+        
+        /* Kontener na kamerę */
+        #camera-container {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
         }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: var(--bg);
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
+        video {
+            width: 100%; height: 100%;
+            object-fit: cover;
         }
-        /* Obszar wizualizacji */
-        #canvas-container {
-            flex-grow: 1;
-            position: relative;
-            background: #222;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            touch-action: none;
-        }
-        #background-img {
-            max-width: 100%;
-            max-height: 100%;
-            pointer-events: none;
-        }
+
+        /* Kontener AdBlue */
         #overlay-img {
             position: absolute;
-            width: 250px; /* szerokość początkowa */
-            cursor: move;
-            touch-action: none;
-            filter: drop-shadow(0px 10px 20px rgba(0,0,0,0.4));
+            top: 30%; left: 25%;
+            width: 250px;
             z-index: 10;
+            touch-action: none;
+            filter: drop-shadow(0px 10px 20px rgba(0,0,0,0.5));
         }
-        #placeholder-text {
-            color: white;
-            position: absolute;
-            text-align: center;
-            padding: 20px;
-        }
-        /* Panel sterowania */
-        .controls {
-            background: white;
-            padding: 15px;
+
+        /* Interfejs */
+        .ui-panel {
+            position: fixed;
+            bottom: 0; left: 0; width: 100%;
+            background: rgba(255, 255, 255, 0.9);
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            box-shadow: 0 -4px 15px rgba(0,0,0,0.2);
-            z-index: 20;
+            gap: 10px;
+            padding: 15px;
+            box-sizing: border-box;
+            z-index: 100;
+            border-radius: 20px 20px 0 0;
         }
         button {
-            padding: 18px 5px;
-            font-size: 14px;
-            font-weight: bold;
-            text-transform: uppercase;
+            padding: 15px 5px;
             border: none;
-            border-radius: 12px;
+            border-radius: 10px;
             background: var(--primary);
             color: white;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: transform 0.1s;
+            font-weight: bold;
+            font-size: 13px;
         }
-        button:active { transform: scale(0.95); }
-        .view-btn { background: var(--secondary); }
-        .upload-btn { background: #444; }
-        .save-btn { 
-            grid-column: span 3; 
-            background: var(--success); 
-            font-size: 18px;
-            margin-top: 5px;
-        }
-        .size-group {
-            grid-column: span 3;
-            display: flex;
-            gap: 10px;
-        }
-        .size-btn { flex: 1; background: #333; }
-        
-        input[type="file"] { display: none; }
+        .size-btn { background: #333; }
+        .save-btn { grid-column: span 3; background: var(--success); font-size: 16px; }
     </style>
 </head>
 <body>
 
-<div id="canvas-container">
-    <div id="placeholder-text">
-        <h2>Wizualizacja Kontenera</h2>
-        <p>Kliknij "WGRAJ MIEJSCE", aby zacząć</p>
-    </div>
-    <img id="background-img">
-    <img id="overlay-img" src="images/kontener-skos.png" style="display:none;">
+<div id="camera-container">
+    <video id="video" autoplay playsinline></video>
+    <img id="overlay-img" src="images/kontener-skos.png">
 </div>
 
-<div class="controls">
-    <button class="upload-btn" onclick="document.getElementById('upload-input').click()">📸 Wgraj Miejsce</button>
-    <input type="file" id="upload-input" accept="image/*">
-
-    <button class="view-btn" onclick="changeView('images/kontener-skos.png')">Widok Skos</button>
-    <button class="view-btn" onclick="changeView('images/kontener-przod.png')">Widok Przód</button>
-    <button class="view-btn" onclick="changeView('images/kontener-bok.png')">Widok Bok</button>
+<div class="ui-panel">
+    <button onclick="changeView('images/kontener-skos.png')">Widok Skos</button>
+    <button onclick="changeView('images/kontener-przod.png')">Widok Przód</button>
+    <button onclick="changeView('images/kontener-bok.png')">Widok Bok</button>
     
-    <div class="size-group">
-        <button class="size-btn" onclick="adjustSize(1.1)">➕ Powiększ</button>
-        <button class="size-btn" onclick="adjustSize(0.9)">➖ Pomniejsz</button>
-    </div>
+    <button class="size-btn" onclick="adjustSize(1.1)">➕ Powiększ</button>
+    <button class="size-btn" style="grid-column: span 2" onclick="adjustSize(0.9)">➖ Pomniejsz</button>
 
-    <button class="save-btn" onclick="saveInstructions()">GOTOWE / ZAPISZ</button>
+    <button class="save-btn" onclick="takeSnapshot()">ZAPISZ WIZUALIZACJĘ (FOTO)</button>
 </div>
 
 <script>
+    const video = document.getElementById('video');
     const overlay = document.getElementById('overlay-img');
-    const bgImg = document.getElementById('background-img');
-    const placeholder = document.getElementById('placeholder-text');
-    
-    let currentScale = 250;
-    let posX = 0;
-    let posY = 0;
+    let scale = 250;
+    let posX = window.innerWidth / 4;
+    let posY = window.innerHeight / 3;
 
-    // 1. Wgrywanie zdjęcia stacji
-    document.getElementById('upload-input').onchange = function(e) {
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            bgImg.src = event.target.result;
-            overlay.style.display = 'block';
-            placeholder.style.display = 'none';
-            // Wyśrodkowanie kontenera po wgraniu
-            resetPosition();
+    // Uruchomienie kamery
+    async function setupCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment" }, // Użyj tylnej kamery
+                audio: false 
+            });
+            video.srcObject = stream;
+        } catch (err) {
+            alert("Błąd kamery: Upewnij się, że nadałeś uprawnienia w przeglądarce.");
         }
-        reader.readAsDataURL(e.target.files[0]);
-    };
-
-    // 2. Zmiana widoku kontenera
-    function changeView(path) {
-        overlay.src = path;
     }
 
-    // 3. Skalowanie przyciskami
+    function changeView(path) { overlay.src = path; }
+
     function adjustSize(factor) {
-        currentScale *= factor;
-        overlay.style.width = currentScale + 'px';
+        scale *= factor;
+        overlay.style.width = scale + 'px';
     }
 
-    function resetPosition() {
-        posX = window.innerWidth / 2 - currentScale / 2;
-        posY = window.innerHeight / 3;
-        updateTransform();
-    }
-
-    // 4. Przesuwanie palcem (obsługa Touch i Mouse)
+    // Przesuwanie palcem
     let isDragging = false;
-    let startX, startY;
-
-    overlay.onpointerdown = (e) => {
-        isDragging = true;
-        startX = e.clientX - posX;
-        startY = e.clientY - posY;
-        overlay.setPointerCapture(e.pointerId);
-    };
-
+    overlay.onpointerdown = (e) => { isDragging = true; overlay.setPointerCapture(e.pointerId); };
+    overlay.onpointerup = () => { isDragging = false; };
     overlay.onpointermove = (e) => {
         if (!isDragging) return;
-        posX = e.clientX - startX;
-        posY = e.clientY - startY;
-        updateTransform();
-    };
-
-    overlay.onpointerup = () => { isDragging = false; };
-
-    function updateTransform() {
+        posX += e.movementX;
+        posY += e.movementY;
         overlay.style.left = posX + 'px';
         overlay.style.top = posY + 'px';
+    };
+
+    function takeSnapshot() {
+        alert("Teraz zrób zrzut ekranu (Screen Shot) swoim telefonem, aby zapisać ten widok!");
     }
 
-    // 5. Instrukcja zapisu
-    function saveInstructions() {
-        alert("Wizualizacja gotowa! \n\nAby zapisać: zrób zrzut ekranu telefonu (Power + Volume Down).");
-    }
+    setupCamera();
 </script>
 
 </body>
