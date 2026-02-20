@@ -3,24 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AdBlue AR - Podgląd Na Żywo</title>
+    <title>AdBlue AR - Aparat</title>
     <style>
         :root { --primary: #0056b3; --success: #28a745; }
         body { margin: 0; padding: 0; overflow: hidden; background: black; font-family: sans-serif; }
         
-        /* Kontener na kamerę */
         #camera-container {
             position: fixed;
             top: 0; left: 0;
             width: 100%; height: 100%;
             z-index: 1;
         }
-        video {
-            width: 100%; height: 100%;
-            object-fit: cover;
-        }
+        video { width: 100%; height: 100%; object-fit: cover; }
 
-        /* Kontener AdBlue */
         #overlay-img {
             position: absolute;
             top: 30%; left: 25%;
@@ -30,7 +25,6 @@
             filter: drop-shadow(0px 10px 20px rgba(0,0,0,0.5));
         }
 
-        /* Interfejs */
         .ui-panel {
             position: fixed;
             bottom: 0; left: 0; width: 100%;
@@ -44,16 +38,19 @@
             border-radius: 20px 20px 0 0;
         }
         button {
-            padding: 15px 5px;
+            padding: 18px 5px;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             background: var(--primary);
             color: white;
             font-weight: bold;
-            font-size: 13px;
+            font-size: 14px;
         }
         .size-btn { background: #333; }
-        .save-btn { grid-column: span 3; background: var(--success); font-size: 16px; }
+        .save-btn { grid-column: span 3; background: var(--success); font-size: 18px; height: 60px; }
+        
+        /* Ukryty element do generowania zdjęcia */
+        #snapshot-canvas { display: none; }
     </style>
 </head>
 <body>
@@ -63,6 +60,8 @@
     <img id="overlay-img" src="images/kontener-skos.png">
 </div>
 
+<canvas id="snapshot-canvas"></canvas>
+
 <div class="ui-panel">
     <button onclick="changeView('images/kontener-skos.png')">Widok Skos</button>
     <button onclick="changeView('images/kontener-przod.png')">Widok Przód</button>
@@ -71,37 +70,37 @@
     <button class="size-btn" onclick="adjustSize(1.1)">➕ Powiększ</button>
     <button class="size-btn" style="grid-column: span 2" onclick="adjustSize(0.9)">➖ Pomniejsz</button>
 
-    <button class="save-btn" onclick="takeSnapshot()">ZAPISZ WIZUALIZACJĘ (FOTO)</button>
+    <button class="save-btn" onclick="takePhoto()">📸 ZRÓB I ZAPISZ ZDJĘCIE</button>
 </div>
 
 <script>
     const video = document.getElementById('video');
     const overlay = document.getElementById('overlay-img');
+    const canvas = document.getElementById('snapshot-canvas');
+    
     let scale = 250;
     let posX = window.innerWidth / 4;
     let posY = window.innerHeight / 3;
 
-    // Uruchomienie kamery
     async function setupCamera() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment" }, // Użyj tylnej kamery
+                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
                 audio: false 
             });
             video.srcObject = stream;
         } catch (err) {
-            alert("Błąd kamery: Upewnij się, że nadałeś uprawnienia w przeglądarce.");
+            alert("Błąd kamery. Upewnij się, że używasz HTTPS i nadałeś uprawnienia.");
         }
     }
 
     function changeView(path) { overlay.src = path; }
-
     function adjustSize(factor) {
         scale *= factor;
         overlay.style.width = scale + 'px';
     }
 
-    // Przesuwanie palcem
+    // Przesuwanie
     let isDragging = false;
     overlay.onpointerdown = (e) => { isDragging = true; overlay.setPointerCapture(e.pointerId); };
     overlay.onpointerup = () => { isDragging = false; };
@@ -113,8 +112,41 @@
         overlay.style.top = posY + 'px';
     };
 
-    function takeSnapshot() {
-        alert("Teraz zrób zrzut ekranu (Screen Shot) swoim telefonem, aby zapisać ten widok!");
+    // FUNKCJA ROBIENIA ZDJĘCIA
+    function takePhoto() {
+        const ctx = canvas.getContext('2d');
+        
+        // Ustawiamy rozmiar zdjęcia taki jak wideo
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        // 1. Rysujemy tło z kamery
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // 2. Obliczamy proporcje, aby kontener był w tym samym miejscu co na ekranie
+        const rect = video.getBoundingClientRect();
+        const ratioX = canvas.width / rect.width;
+        const ratioY = canvas.height / rect.height;
+
+        const imgX = (posX - rect.left) * ratioX;
+        const imgY = (posY - rect.top) * ratioY;
+        const imgW = scale * ratioX;
+        const imgH = overlay.offsetHeight * ratioY;
+
+        // 3. Nakładamy kontener
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = overlay.src;
+        img.onload = () => {
+            ctx.drawImage(img, imgX, imgY, imgW, imgH);
+            
+            // 4. Pobieramy gotowe zdjęcie i wywołujemy pobieranie
+            const dataURL = canvas.toDataURL("image/png");
+            const link = document.createElement('a');
+            link.download = `wizualizacja-adblue-${new Date().getTime()}.png`;
+            link.href = dataURL;
+            link.click();
+        };
     }
 
     setupCamera();
